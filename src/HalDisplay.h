@@ -85,6 +85,7 @@ public:
   void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t *rows,
                                 uint16_t yStart, uint16_t numRows);
   bool supportsStripGrayscale() const;
+  bool supportsAsyncGrayscaleBase() const;  // CrossLight: upstream firmware (>=1f3d7458) calls this; stub false (no async e-ink in sim)
   bool combinesGrayscaleBase() const;
 
   // Simulator only: call from main thread to push rendered pixels to SDL.

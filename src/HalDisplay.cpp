@@ -569,6 +569,7 @@ void HalDisplay::writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t *rows,
   }
 }
 bool HalDisplay::supportsStripGrayscale() const { return true; }
+bool HalDisplay::supportsAsyncGrayscaleBase() const { return false; }
 bool HalDisplay::combinesGrayscaleBase() const {
   return BoardConfig::isPaperMono();
 }
