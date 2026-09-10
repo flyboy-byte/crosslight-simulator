@@ -524,6 +524,14 @@ void HalDisplay::displayGrayscaleBase(RefreshMode fallback,
   }
   displayBuffer(fallback, turnOffScreen);
 }
+// Mode-aware overload: the simulator's grayscale preview compositor handles
+// Overlay and Absolute the same way, so this just performs the base and reports
+// success. absoluteGrayPlanes bookkeeping lives in GfxRenderer, not here.
+bool HalDisplay::displayGrayscaleBase(GrayscaleMode, RefreshMode fallback,
+                                      bool turnOffScreen) {
+  displayGrayscaleBase(fallback, turnOffScreen);
+  return true;
+}
 void HalDisplay::preconditionGrayscale() {}
 void HalDisplay::preconditionGrayscale(uint16_t, uint16_t, uint16_t, uint16_t) {
 }
@@ -572,6 +580,24 @@ bool HalDisplay::supportsStripGrayscale() const { return true; }
 bool HalDisplay::supportsAsyncGrayscaleBase() const { return false; }
 bool HalDisplay::combinesGrayscaleBase() const {
   return BoardConfig::isPaperMono();
+}
+HalDisplay::Controller HalDisplay::getController() const {
+  return BoardConfig::ACTIVE.displayController;
+}
+// Consolidated capabilities; field values match the three predicates above so
+// GfxRenderer (which now reads these instead of calling them) sees identical
+// simulator behavior. encoding is OverlayMasks (i.e. supported) because the sim
+// intentionally advertises grayscale to drive its preview compositor.
+HalDisplay::GrayscaleCapabilities
+HalDisplay::grayscaleCapabilities(GrayscaleMode) const {
+  GrayscaleCapabilities caps;
+  caps.encoding = GrayscaleEncoding::OverlayMasks;
+  caps.base = combinesGrayscaleBase() ? GrayscaleBase::Combined
+                                      : GrayscaleBase::Separate;
+  caps.stripUploads = supportsStripGrayscale();
+  caps.asyncBase = supportsAsyncGrayscaleBase();
+  caps.stagingWhileBusy = false;
+  return caps;
 }
 
 uint16_t HalDisplay::getDisplayWidth() const { return DISPLAY_WIDTH; }

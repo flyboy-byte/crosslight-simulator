@@ -67,6 +67,12 @@ public:
   bool wasReleased(uint8_t buttonIndex) const;
   bool wasAnyReleased() const;
   bool isDebouncePending() const { return false; }
+  // Added upstream (input fix #3463): "is a button physically down right now",
+  // used to early-break a 50ms idle settle so short presses register. The sim
+  // is event-driven and not cycle-accurate, so a false stub is correct: the
+  // settle simply runs its full 50ms, and input is still processed normally on
+  // the next update() -- nothing is swallowed.
+  bool rawInputActive() { return false; }
   unsigned long getHeldTime() const;
   unsigned long getPowerButtonHeldTime() const;
   bool hasTouch() const;

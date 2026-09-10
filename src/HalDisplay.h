@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <BoardConfig.h>
 #include <EInkDisplay.h>
 
 class HalDisplay {
@@ -9,6 +10,37 @@ public:
 
   // Destructor
   ~HalDisplay();
+
+  // Display controller identity. Added upstream (sleep-cover work) so callers
+  // can branch on the specific panel controller; SleepActivity checks it for
+  // the SSD1677 absolute-grayscale path. Mirrors firmware HalDisplay exactly.
+  using Controller = BoardConfig::DisplayController;
+  Controller getController() const;
+
+  // Grayscale capability model. Mirrors freeink::GrayscaleCapabilities
+  // (freeink-sdk .../FreeInkDisplay/include/GrayscaleCapabilities.h), redefined
+  // locally because the simulator build does not link FreeInkDisplay, so that
+  // header is not on its include path. Upstream firmware (grayscale
+  // consolidation, PR #3478) replaced the standalone supports*/combines*
+  // predicates with grayscaleCapabilities() returning this struct; GfxRenderer
+  // now derives all of them from it. Keep the field shape identical to the
+  // freeink header so GfxRenderer's field access compiles unchanged.
+  enum class GrayscaleMode : uint8_t { Overlay, Absolute };
+  enum class GrayscaleEncoding : uint8_t { Unsupported, OverlayMasks, AbsolutePlanes };
+  enum class GrayscaleBase : uint8_t { Separate, Combined };
+  struct GrayscaleCapabilities {
+    GrayscaleEncoding encoding = GrayscaleEncoding::Unsupported;
+    GrayscaleBase base = GrayscaleBase::Separate;
+    bool stripUploads = false;
+    bool asyncBase = false;
+    bool stagingWhileBusy = false;
+    constexpr bool supported() const { return encoding != GrayscaleEncoding::Unsupported; }
+  };
+
+  // Consolidated query (was supportsStripGrayscale/supportsAsyncGrayscaleBase/
+  // combinesGrayscaleBase, all still present below and unchanged for any direct
+  // caller). Values match those predicates so simulator behavior is identical.
+  GrayscaleCapabilities grayscaleCapabilities(GrayscaleMode mode = GrayscaleMode::Overlay) const;
 
   // Refresh modes
   enum RefreshMode {
@@ -65,6 +97,11 @@ public:
   uint32_t getBufferSize() const;
 
   void displayGrayscaleBase(RefreshMode fallback = HALF_REFRESH,
+                            bool turnOffScreen = false);
+  // Mode-aware overload added by the grayscale consolidation; returns success.
+  // Distinct first-parameter type (GrayscaleMode vs RefreshMode) keeps it
+  // unambiguous against the void overload above.
+  bool displayGrayscaleBase(GrayscaleMode mode, RefreshMode fallback = HALF_REFRESH,
                             bool turnOffScreen = false);
   void preconditionGrayscale();
   void preconditionGrayscale(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
