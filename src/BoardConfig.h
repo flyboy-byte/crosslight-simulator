@@ -108,12 +108,24 @@ enum class Board {
   PaperMono,
 };
 
-enum class DisplayController {
-  SSD1677,
-  UC8253,
-  UC8279,
-  UC8179,
+// Mirrors freeink BoardConfig.h. The sim only ever selects SSD1677/UC825x/
+// UC827x for its devices, but AboutActivity's switch names every value, so all
+// must exist for it to compile.
+enum class DisplayController : uint8_t {
+  SSD1677 = 0,
+  UC8253 = 2,
+  ED2208 = 3,
+  LgfxEpd = 4,
+  IT8951 = 5,
+  UC8279 = 6,
+  UC8179 = 7,
+  UC8279C = 8,
 };
+
+// Touch controller identity, read by AboutActivity. The sim models touch as a
+// single virtual device, so the reported controller is cosmetic; keep the enum
+// aligned with freeink so the About switch compiles.
+enum class TouchController : uint8_t { None, Chsc6x, Gt911, Ft5x06, Ft6336u, Gslx680 };
 
 struct ViewableInsets {
   uint8_t top = 9;
@@ -132,6 +144,18 @@ struct BoardProfile {
     int8_t down;
   } input;
   ViewableInsets viewableInsets = {};
+  // Read by AboutActivity (upstream #3563). Every simulated device shares the
+  // X4 family's 800x480 geometry, so these defaults are accurate for all of
+  // them. `touch.controller` is cosmetic in the sim (touch is modeled as one
+  // virtual device); it defaults to None, so the About screen shows touch "No"
+  // even for the X4 Pro, whose real firmware BoardConfig reports GT911. These
+  // are trailing defaulted members so the positional profile initializers below
+  // stay valid.
+  uint16_t displayWidth = 800;
+  uint16_t displayHeight = 480;
+  struct {
+    TouchController controller = TouchController::None;
+  } touch = {};
 };
 
 #if defined(SIMULATOR_DISPLAY_UC8179)

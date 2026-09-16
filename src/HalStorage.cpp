@@ -173,6 +173,15 @@ size_t HalFile::size() {
 }
 size_t HalFile::fileSize() { return size(); }
 uint64_t HalFile::fileSize64() { return size(); }
+
+uint32_t HalFile::modificationTime() {
+  if (!impl || impl->fd < 0)
+    return 0;
+  struct stat st;
+  if (fstat(impl->fd, &st) != 0)
+    return 0;
+  return static_cast<uint32_t>(st.st_mtime);
+}
 bool HalFile::seek(size_t pos) {
   if (!impl || impl->fd < 0)
     return false;

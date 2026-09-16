@@ -25,7 +25,12 @@ public:
   // predicates with grayscaleCapabilities() returning this struct; GfxRenderer
   // now derives all of them from it. Keep the field shape identical to the
   // freeink header so GfxRenderer's field access compiles unchanged.
-  enum class GrayscaleMode : uint8_t { Overlay, Absolute };
+  // Direct added upstream (freeink GrayscaleCapabilities.h): absolute-plane
+  // encoding with one combined activation using the full-quality image
+  // waveform; SleepActivity probes GrayscaleMode::Direct for the SSD1677
+  // sleep-cover path. grayscaleCapabilities()/displayGrayscaleBase() ignore the
+  // mode in the sim, so the value only needs to exist for the enum to match.
+  enum class GrayscaleMode : uint8_t { Overlay, Absolute, Direct };
   enum class GrayscaleEncoding : uint8_t { Unsupported, OverlayMasks, AbsolutePlanes };
   enum class GrayscaleBase : uint8_t { Separate, Combined };
   struct GrayscaleCapabilities {

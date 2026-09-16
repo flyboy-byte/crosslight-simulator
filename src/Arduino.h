@@ -66,6 +66,12 @@ struct ESPMock {
   uint32_t getMaxAllocHeap() {
     return std::min(heapValue("CROSSPOINT_SIM_MAX_ALLOC_HEAP"), getFreeHeap());
   }
+  // Chip identity, read by AboutActivity (upstream #3563). The X4 Pro is an
+  // ESP32-S3 with 16 MB flash; report those so the sim's About screen matches
+  // the target device.
+  const char *getChipModel() { return "ESP32-S3"; }
+  uint8_t getChipRevision() { return 0; }
+  uint32_t getFlashChipSize() { return 16u * 1024u * 1024u; }
 };
 extern ESPMock ESP;
 

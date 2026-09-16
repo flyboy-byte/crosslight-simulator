@@ -72,6 +72,11 @@ public:
                         HalFile &file);
   bool removeDir(const char *path);
 
+  // Added upstream (USB drive activity): true while the USB host has suspended
+  // the mass-storage endpoint. The sim has no USB host, so it is never
+  // suspended.
+  bool usbDriveHostSuspended() const { return false; }
+
   static HalStorage &getInstance() { return instance; }
 
   class StorageLock; // private class, used internally
@@ -104,6 +109,10 @@ public:
   size_t size();
   size_t fileSize();
   uint64_t fileSize64();
+  // Added upstream (Library view #3366): the on-disk mtime, used to sort the
+  // library index by recency. Backed by a real fstat() on the sandboxed fd, so
+  // it reflects genuine file mtimes under ./fs_.
+  uint32_t modificationTime();
   bool seek(size_t pos);
   bool seek64(uint64_t pos);
   bool seekCur(int64_t offset);

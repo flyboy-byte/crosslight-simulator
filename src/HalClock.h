@@ -22,4 +22,8 @@ class HalClock {
   bool formatDate(char* buf, size_t bufSize,
                   uint8_t utcOffsetQuarterHoursBiased = 48) const;
   bool syncFromNTP();
+  // POSIX TZ rule applied by the timezone/DST settings (upstream #3562). The sim
+  // reads time from the host clock and does not model zone conversion, so this
+  // is a no-op stub.
+  void setTimezone(const char* /*posixTz*/) {}
 };
