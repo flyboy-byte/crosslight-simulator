@@ -98,3 +98,10 @@ inline void vTaskDelay(uint32_t ticks) {
   std::this_thread::sleep_for(std::chrono::milliseconds(
       static_cast<int64_t>(ticks) * portTICK_PERIOD_MS));
 }
+
+// Static-task storage. The host FreeRTOS shim creates tasks with std::thread and
+// never reads this, but MemoryManager sizes its borrowed TCB slots with
+// sizeof(StaticTask_t), so it needs a type of plausible size.
+struct StaticTask_t {
+  void* dummy[24];
+};
