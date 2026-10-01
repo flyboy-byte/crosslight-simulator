@@ -1,6 +1,7 @@
 #include "NetworkClient.h"
 
 #include <netdb.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -110,3 +111,29 @@ void NetworkClient::stop() {
 }
 
 uint8_t NetworkClient::connected() { return (impl_ && impl_->fd >= 0) ? 1 : 0; }
+
+int NetworkClient::available() {
+  if (!impl_ || impl_->fd < 0) return 0;
+  int bytes = 0;
+  if (::ioctl(impl_->fd, FIONREAD, &bytes) < 0) return 0;
+  return bytes;
+}
+
+int NetworkClient::read(uint8_t *buf, size_t size) {
+  if (!impl_ || impl_->fd < 0 || !buf || size == 0) return -1;
+  const ssize_t n = ::recv(impl_->fd, buf, size, 0);
+  if (n <= 0) return -1;
+  return static_cast<int>(n);
+}
+
+int NetworkClient::read() {
+  uint8_t b;
+  return read(&b, 1) == 1 ? b : -1;
+}
+
+int NetworkClient::peek() {
+  if (!impl_ || impl_->fd < 0) return -1;
+  uint8_t b;
+  const ssize_t n = ::recv(impl_->fd, &b, 1, MSG_PEEK);
+  return n == 1 ? b : -1;
+}

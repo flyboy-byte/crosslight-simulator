@@ -45,6 +45,9 @@ public:
   // bytes read.
   size_t readFileToBuffer(const char *path, char *buffer, size_t bufferSize,
                           size_t maxBytes = 0);
+  // Read the whole file at `path` into `out`. Fails (without allocating) on
+  // missing, directory, empty, or above-`cap` files.
+  bool readFileToString(const char *moduleName, const std::string &path, size_t cap, std::string &out);
   // Write a string to `path` on the SD card. Overwrites existing file.
   // Returns true on success.
   bool writeFile(const char *path, const String &content);
@@ -57,6 +60,11 @@ public:
   bool exists(const char *path);
   bool remove(const char *path);
   bool rename(const char *oldPath, const char *newPath);
+  // Move a fully written temp file over `path`. FAT rename does not replace an
+  // existing file, so the old one is removed first.
+  bool replaceFile(const char *tmpPath, const char *path) {
+    return (!exists(path) || remove(path)) && rename(tmpPath, path);
+  }
   bool rmdir(const char *path);
 
   bool openFileForRead(const char *moduleName, const char *path, HalFile &file);
@@ -125,6 +133,7 @@ public:
   size_t write(const uint8_t *buf, size_t count) override;
   size_t write(uint8_t b) override;
   bool sync();
+  bool truncate(uint64_t length);
   bool rename(const char *newPath);
   bool isDirectory() const;
   void rewindDirectory();

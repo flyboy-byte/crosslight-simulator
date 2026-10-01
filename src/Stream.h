@@ -8,6 +8,8 @@ public:
   virtual int read() = 0;
   virtual int peek() = 0;
   virtual void flush() override {}
+  void setTimeout(unsigned long ms) { _timeout = ms; }
+  unsigned long getTimeout() const { return _timeout; }
   String readStringUntil(char terminator) { return String(""); }
   size_t readBytes(uint8_t *buffer, size_t length) {
     return readBytes(reinterpret_cast<char *>(buffer), length);
@@ -25,4 +27,7 @@ public:
     }
     return count;
   }
+
+private:
+  unsigned long _timeout = 1000;
 };

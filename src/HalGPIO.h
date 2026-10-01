@@ -5,6 +5,8 @@
 #include <BoardConfig.h>
 #include <InputManager.h>
 
+#include <cstring>
+
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
 #ifndef EPD_SCLK
 #define EPD_SCLK 8 // SPI Clock
@@ -51,6 +53,13 @@ public:
   inline bool deviceIsX4() const { return _deviceType == DeviceType::X4; }
   bool isXteinkDevice() const;
   bool hasEdgeSideButtons() const;
+  // No real efuse on host; a fixed, clearly-fake address is enough for UI
+  // screens that just display it (e.g. the web server status page).
+  bool getFactoryMac(char (&address)[18]) const {
+    static const char kSimMac[] = "de:ad:be:ef:00:01";
+    memcpy(address, kSimMac, sizeof(kSimMac));
+    return true;
+  }
 
   // Start button GPIO and setup SPI for screen and SD card
   void begin();

@@ -114,6 +114,20 @@ public:
   long clientContentLength();
   HTTPUpload &upload();
 
+protected:
+  // Real arg storage lives in Impl (host build has plenty of RAM to not
+  // bother reclaiming it eagerly). These exist only so firmware subclasses
+  // that reach into the real ESP32 WebServer's protected internals to free
+  // them between requests (a real embedded memory concern) still link here.
+  struct RequestArgument {
+    String key;
+    String value;
+  };
+  RequestArgument *_currentArgs = nullptr;
+  int _currentArgCount = 0;
+  RequestArgument *_postArgs = nullptr;
+  int _postArgsLen = 0;
+
 private:
   struct Impl;
   std::unique_ptr<Impl> impl_;

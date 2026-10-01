@@ -10,6 +10,11 @@
 #include <string>
 #include <thread>
 
+// Real ESP32 Arduino.h pulls in FreeRTOS transitively; firmware code (e.g.
+// lib/TrustedTime) that uses portMUX_TYPE/portENTER_CRITICAL after only
+// including <Arduino.h> relies on that. Match it here.
+#include "freertos/FreeRTOS.h"
+
 #define PROGMEM
 #define ICACHE_RODATA_ATTR
 #define IRAM_ATTR

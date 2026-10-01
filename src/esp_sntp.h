@@ -10,3 +10,8 @@ inline void sntp_set_time_sync_notification_cb(void (*)(struct timeval *)) {}
 
 #define SNTP_SYNC_STATUS_COMPLETED 1
 inline int sntp_get_sync_status() { return 1; }
+
+// On ESP32 this also sets TZ and kicks off SNTP (esp32-hal-time.h, pulled in
+// by Arduino.h). The host already has a correct wall clock via the system's
+// own NTP sync, so this is a no-op.
+inline void configTzTime(const char *, const char *) {}

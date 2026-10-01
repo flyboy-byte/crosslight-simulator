@@ -4,21 +4,23 @@
 #include <cstdint>
 #include <memory>
 
+#include "Client.h"
 #include "WString.h"
 
 class Stream;
 
-class NetworkClient {
+class NetworkClient : public Client {
 public:
   NetworkClient() {}
   explicit NetworkClient(int fd);
-  virtual ~NetworkClient() {}
-  virtual int connect(const char *host, uint16_t port);
-  virtual size_t write(const uint8_t *buf, size_t size);
+  ~NetworkClient() override {}
+  virtual int connect(const char *host, uint16_t port) override;
+  int connect(IPAddress ip, uint16_t port) override { return connect(ip.toString().c_str(), port); }
+  virtual size_t write(const uint8_t *buf, size_t size) override;
   virtual size_t write(const char *str) {
     return write((const uint8_t *)str, strlen(str));
   }
-  virtual size_t write(uint8_t c) { return write(&c, 1); }
+  virtual size_t write(uint8_t c) override { return write(&c, 1); }
   virtual size_t write(Stream &stream);
   template <typename T> size_t write(T &streamLike) {
     uint8_t buffer[4096];
@@ -34,12 +36,15 @@ public:
     }
     return total;
   }
-  virtual int available() { return 0; }
-  virtual int read() { return -1; }
-  virtual void stop();
+  int available() override;
+  int read() override;
+  int read(uint8_t *buf, size_t size) override;
+  int peek() override;
+  void stop() override;
   virtual void clear() {}
-  virtual uint8_t connected();
-  operator bool() { return connected(); }
+  uint8_t connected() override;
+  void setConnectionTimeout(uint32_t) {}
+  operator bool() override { return connected(); }
 
 private:
   struct Impl;

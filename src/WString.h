@@ -112,6 +112,18 @@ public:
   bool isEmpty() const { return s.empty(); }
   size_t length() const { return s.length(); }
   const char *c_str() const { return s.c_str(); }
+  bool reserve(size_t size) {
+    s.reserve(size);
+    return true;
+  }
+  String &remove(size_t index, size_t count = static_cast<size_t>(-1)) {
+    if (index < s.length()) s.erase(index, count);
+    return *this;
+  }
+  char *begin() { return s.empty() ? nullptr : &s[0]; }
+  char *end() { return s.empty() ? nullptr : &s[0] + s.size(); }
+  const char *begin() const { return s.empty() ? nullptr : &s[0]; }
+  const char *end() const { return s.empty() ? nullptr : &s[0] + s.size(); }
   bool operator==(const char *other) const { return s == (other ? other : ""); }
   bool operator!=(const char *other) const { return !(*this == other); }
   bool operator==(const String &other) const { return s == other.s; }

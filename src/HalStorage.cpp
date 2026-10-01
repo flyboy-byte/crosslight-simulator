@@ -152,6 +152,11 @@ bool HalFile::sync() {
     return false;
   return fsync(impl->fd) == 0;
 }
+bool HalFile::truncate(uint64_t length) {
+  if (!impl || impl->fd < 0)
+    return false;
+  return ftruncate(impl->fd, static_cast<off_t>(length)) == 0;
+}
 size_t HalFile::getName(char *name, size_t len) {
   if (!impl || impl->path.empty())
     return 0;
@@ -419,6 +424,18 @@ bool HalStorage::readFileToStream(const char *path, Print &out,
     out.write(reinterpret_cast<const uint8_t *>(buf.data()), n);
   }
   return true;
+}
+
+bool HalStorage::readFileToString(const char *, const std::string &path, size_t cap, std::string &out) {
+  out.clear();
+  HalFile f = open(path.c_str(), O_RDONLY);
+  if (!f || f.isDirectory())
+    return false;
+  const size_t size = f.fileSize();
+  if (size == 0 || size > cap)
+    return false;
+  out.resize(size);
+  return f.read(out.data(), size) == static_cast<int>(size);
 }
 size_t HalStorage::readFileToBuffer(const char *path, char *buffer,
                                     size_t bufferSize, size_t maxBytes) {
