@@ -32,6 +32,20 @@ bool HalClock::getTime(uint8_t &hour, uint8_t &minute) const {
   return true;
 }
 
+bool HalClock::localTime(struct tm &out) const {
+  if (!_available)
+    return false;
+  // The sim reads the host clock and does not model timezone conversion; use the
+  // host's local time so callers that only need the calendar year/date are right.
+  const std::time_t now = std::time(nullptr);
+#if defined(_WIN32)
+  localtime_s(&out, &now);
+#else
+  localtime_r(&now, &out);
+#endif
+  return true;
+}
+
 bool HalClock::getDateTime(uint16_t &year, uint8_t &month, uint8_t &day,
                            uint8_t &hour, uint8_t &minute) const {
   if (!_available)
