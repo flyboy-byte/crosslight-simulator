@@ -89,6 +89,9 @@ public:
   bool wasHomeKeyPressed() const;
   bool wasHomeKeyTapped() const;
   bool wasHomeKeyLongPressed() const;
+  // Capacitive page-bar buttons: not simulated on the desktop build.
+  bool wasCapacitivePagePressed() const { return false; }
+  bool isCapacitivePagePressed(uint8_t /*buttonIndex*/) const { return false; }
   bool wasTouchTap(float &nx, float &ny) const;
   bool wasTouchDown(float &nx, float &ny) const;
   bool wasTouchReleased() const;

@@ -8,6 +8,7 @@
 #define ARDUINOJSON_ENABLE_ARDUINO_STRING 1
 #endif
 
+#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -88,6 +89,14 @@ public:
     }
     size_t last = s.find_last_not_of(" \t\n\r");
     s = s.substr(first, (last - first + 1));
+  }
+  void toLowerCase() {
+    for (char &c : s)
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  }
+  void toUpperCase() {
+    for (char &c : s)
+      c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
   }
   void replace(char find, char replaceWith) {
     for (char &c : s) {
