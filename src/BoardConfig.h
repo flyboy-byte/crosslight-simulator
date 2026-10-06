@@ -10,10 +10,10 @@
 #define FREEINK_LOG_TRANSPORT_ROM_PRINTF 1
 #define FREEINK_LOG_TRANSPORT FREEINK_LOG_TRANSPORT_HWCDC
 
-#if (defined(SIMULATOR_DEVICE_X3) + defined(SIMULATOR_DEVICE_X4_PRO) + \
-     defined(SIMULATOR_DEVICE_X4_CLASSIC) +                               \
-     defined(SIMULATOR_DEVICE_STICKY) +                                   \
-     defined(SIMULATOR_DEVICE_PAPERMONO)) > 1
+#if (defined(SIMULATOR_DEVICE_X3) + defined(SIMULATOR_DEVICE_X4_PRO) +         \
+     defined(SIMULATOR_DEVICE_X4_CLASSIC) + defined(SIMULATOR_DEVICE_STICKY) + \
+     defined(SIMULATOR_DEVICE_PAPERMONO) +                                     \
+     defined(SIMULATOR_DEVICE_METALIO_EINK4)) > 1
 #error "Select at most one simulated device"
 #endif
 
@@ -25,8 +25,9 @@
 #error "Xteink X3 revisions use UC8253 or UC8279d, not UC8179"
 #endif
 
-#if (defined(SIMULATOR_DEVICE_STICKY) ||                           \
-     defined(SIMULATOR_DEVICE_PAPERMONO)) &&                      \
+#if (defined(SIMULATOR_DEVICE_STICKY) ||                                       \
+     defined(SIMULATOR_DEVICE_PAPERMONO) ||                                    \
+     defined(SIMULATOR_DEVICE_METALIO_EINK4)) &&                               \
     (defined(SIMULATOR_DISPLAY_UC8179) || defined(SIMULATOR_DISPLAY_UC8279))
 #error "This device uses SSD1677; do not select an Xteink controller override"
 #endif
@@ -37,8 +38,26 @@
 #undef FREEINK_DEVICE_X4CLASSIC
 #undef FREEINK_DEVICE_STICKY
 #undef FREEINK_DEVICE_PAPERMONO
+#undef FREEINK_DEVICE_METALIO_EINK4
 
-#if defined(SIMULATOR_DEVICE_PAPERMONO)
+#if defined(SIMULATOR_DEVICE_METALIO_EINK4)
+#define FREEINK_DEVICE_METALIO_EINK4 1
+#define FREEINK_CAP_HAPTIC 1
+#else
+#define FREEINK_DEVICE_METALIO_EINK4 0
+#define FREEINK_CAP_HAPTIC 0
+#endif
+
+#if defined(SIMULATOR_DEVICE_METALIO_EINK4)
+#define FREEINK_DEVICE_X4 0
+#define FREEINK_DEVICE_X3 0
+#define FREEINK_DEVICE_X4PRO 0
+#define FREEINK_DEVICE_X4CLASSIC 0
+#define FREEINK_DEVICE_STICKY 0
+#define FREEINK_DEVICE_PAPERMONO 0
+#define FREEINK_CAP_TOUCH 1
+#define FREEINK_CAP_FRONTLIGHT 0
+#elif defined(SIMULATOR_DEVICE_PAPERMONO)
 #define FREEINK_DEVICE_X4 0
 #define FREEINK_DEVICE_X3 0
 #define FREEINK_DEVICE_X4PRO 0
@@ -106,6 +125,7 @@ enum class Board {
   XteinkX4Classic,
   Sticky,
   PaperMono,
+  MetalioEInk4,
 };
 
 // Mirrors freeink BoardConfig.h. The sim only ever selects SSD1677/UC825x/
@@ -125,7 +145,11 @@ enum class DisplayController : uint8_t {
 // Touch controller identity, read by AboutActivity. The sim models touch as a
 // single virtual device, so the reported controller is cosmetic; keep the enum
 // aligned with freeink so the About switch compiles.
-enum class TouchController : uint8_t { None, Chsc6x, Gt911, Ft5x06, Ft6336u, Gslx680 };
+enum class TouchController : uint8_t { None, Chsc6x, Gt911, Ft5x06, Ft6336u, Gslx680, Cst816s };
+
+struct TouchConfig {
+  TouchController controller = TouchController::None;
+};
 
 struct ViewableInsets {
   uint8_t top = 9;
@@ -153,9 +177,7 @@ struct BoardProfile {
   // stay valid.
   uint16_t displayWidth = 800;
   uint16_t displayHeight = 480;
-  struct {
-    TouchController controller = TouchController::None;
-  } touch = {};
+  TouchConfig touch = {};
 };
 
 #if defined(SIMULATOR_DISPLAY_UC8179)
@@ -185,17 +207,31 @@ inline constexpr BoardProfile XTEINK_X3_UC8279 = {
     {4, 5}};
 inline constexpr BoardProfile XTEINK_X4_PRO = {
     Board::XteinkX4Pro, "xteink_x4_pro", X4_DISPLAY_CONTROLLER,
-    X4_DISPLAY_CONTROLLER_VARIANT, {0, 7}};
+    X4_DISPLAY_CONTROLLER_VARIANT, {0, 7}, {}, 800, 480,
+    {TouchController::Gt911}};
 inline constexpr BoardProfile XTEINK_X4_CLASSIC = {
     Board::XteinkX4Classic, "xteink_x4_classic", X4_DISPLAY_CONTROLLER,
     X4_DISPLAY_CONTROLLER_VARIANT, {0, 7}, {9, 7, 3, 7}};
 inline constexpr BoardProfile STICKY = {
-    Board::Sticky, "sticky", DisplayController::SSD1677, 0, {5, 6}};
+    Board::Sticky, "sticky", DisplayController::SSD1677, 0, {5, 6}, {}, 800,
+    480, {TouchController::Gt911}};
 inline constexpr BoardProfile PAPER_MONO = {
     Board::PaperMono, "m5stack_paper_mono", DisplayController::SSD1677, 0,
-    {0, 7}, {9, 7, 3, 7}};
+    {0, 7}, {9, 7, 3, 7}, 800, 480, {TouchController::Ft6336u}};
 
-#if defined(SIMULATOR_DEVICE_PAPERMONO)
+inline constexpr BoardProfile METALIO_EINK4 = {Board::MetalioEInk4,
+                                               "metalio_eink4",
+                                               DisplayController::SSD1677,
+                                               0,
+                                               {-1, -1},
+                                               {},
+                                               800,
+                                               480,
+                                               {TouchController::Cst816s}};
+
+#if defined(SIMULATOR_DEVICE_METALIO_EINK4)
+inline BoardProfile ACTIVE = METALIO_EINK4;
+#elif defined(SIMULATOR_DEVICE_PAPERMONO)
 inline BoardProfile ACTIVE = PAPER_MONO;
 #elif defined(SIMULATOR_DEVICE_STICKY)
 inline BoardProfile ACTIVE = STICKY;
@@ -233,6 +269,9 @@ inline bool selectDevice(Board board) {
   case Board::Sticky:
     ACTIVE = STICKY;
     return true;
+  case Board::MetalioEInk4:
+    ACTIVE = METALIO_EINK4;
+    return true;
   case Board::PaperMono:
     ACTIVE = PAPER_MONO;
     return true;
@@ -242,10 +281,16 @@ inline bool selectDevice(Board board) {
 
 inline bool isX4Pro() { return ACTIVE.board == Board::XteinkX4Pro; }
 inline bool isX4Classic() { return ACTIVE.board == Board::XteinkX4Classic; }
+// Added upstream (eego A4 support, PR #3887): the sim has no eego A4 profile,
+// so this is always false, matching every other unsimulated board.
+inline bool isEegoA4() { return false; }
 inline bool isSticky() { return ACTIVE.board == Board::Sticky; }
 inline bool isPaperMono() { return ACTIVE.board == Board::PaperMono; }
-inline bool hasTouch() { return isX4Pro() || isSticky() || isPaperMono(); }
-inline bool hasHomeKey() { return isX4Pro(); }
+inline bool isMetalioEInk4() { return ACTIVE.board == Board::MetalioEInk4; }
+inline bool hasTouch() {
+  return isX4Pro() || isSticky() || isPaperMono() || isMetalioEInk4();
+}
+inline bool hasHomeKey() { return isX4Pro() || isMetalioEInk4(); }
 inline bool hasPwmFrontlight() { return isX4Pro() || isPaperMono(); }
 
 inline void holdPowerRails() {}

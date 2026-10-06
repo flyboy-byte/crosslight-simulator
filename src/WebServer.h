@@ -69,7 +69,7 @@ public:
 class WebServer {
 public:
   WebServer(int port);
-  ~WebServer();
+  virtual ~WebServer();
   void begin();
   void handleClient();
   void enableCORS(bool /*enabled*/) {
@@ -129,6 +129,8 @@ protected:
   int _postArgsLen = 0;
 
 private:
+  void clearArguments();
+  void publishArguments();
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

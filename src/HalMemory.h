@@ -5,7 +5,7 @@
 #include <memory>
 
 class HalMemory {
- public:
+public:
   struct HeapStats {
     size_t freeBytes;
     size_t totalBytes;
@@ -13,13 +13,12 @@ class HalMemory {
     size_t largestBlockBytes;
   };
 
-  // Mirrors the firmware's PSRAM allocator (lib/hal/HalMemory.h). The desktop
-  // has no PSRAM, so this is a plain heap allocation -- callers only need the
-  // buffer to exist and to free correctly.
   struct PsramDeleter {
-    void operator()(uint8_t* buffer) const;
+    void operator()(uint8_t *buffer) const;
   };
   using PsramBuffer = std::unique_ptr<uint8_t[], PsramDeleter>;
+  // The simulator has no PSRAM; always null, matching the firmware's
+  // documented behavior for devices without it.
   static PsramBuffer allocatePsram(size_t bytes);
 
   static HeapStats getDefaultHeap();

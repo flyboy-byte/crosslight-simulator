@@ -94,12 +94,14 @@ void HalStorage::endUsbDrive() {}
 UsbDriveState HalStorage::usbDriveState() const {
   return UsbDriveState::Unsupported;
 }
+bool HalStorage::usbDriveHostSuspended() const { return false; }
 
 class HalFile::Impl {
 public:
   int fd = -1;
   std::string path;
   DIR *dir = nullptr;
+  size_t directoryPosition = 0;
 
   bool open(const char *p, int flags) {
     path = p;
@@ -117,6 +119,7 @@ public:
   bool openAsDir(const char *p) {
     path = p;
     dir = opendir(p);
+    directoryPosition = 0;
     return dir != nullptr;
   }
 
@@ -152,11 +155,6 @@ bool HalFile::sync() {
     return false;
   return fsync(impl->fd) == 0;
 }
-bool HalFile::truncate(uint64_t length) {
-  if (!impl || impl->fd < 0)
-    return false;
-  return ftruncate(impl->fd, static_cast<off_t>(length)) == 0;
-}
 size_t HalFile::getName(char *name, size_t len) {
   if (!impl || impl->path.empty())
     return 0;
@@ -178,14 +176,14 @@ size_t HalFile::size() {
 }
 size_t HalFile::fileSize() { return size(); }
 uint64_t HalFile::fileSize64() { return size(); }
-
 uint32_t HalFile::modificationTime() {
-  if (!impl || impl->fd < 0)
+  if (!impl || impl->path.empty())
     return 0;
-  struct stat st;
-  if (fstat(impl->fd, &st) != 0)
-    return 0;
-  return static_cast<uint32_t>(st.st_mtime);
+
+  struct stat info{};
+  const int result = (impl->fd >= 0) ? fstat(impl->fd, &info)
+                                     : stat(impl->path.c_str(), &info);
+  return result == 0 ? static_cast<uint32_t>(info.st_mtime) : 0;
 }
 bool HalFile::seek(size_t pos) {
   if (!impl || impl->fd < 0)
@@ -205,9 +203,26 @@ bool HalFile::seekCur(int64_t offset) {
   return lseek(impl->fd, (off_t)offset, SEEK_CUR) >= 0;
 }
 bool HalFile::seekSet(size_t offset) {
-  if (!impl || impl->fd < 0)
-    return false;
+  if (!impl) return false;
+  if (impl->dir) {
+    // LibraryBuilder closes a parent directory while it walks a child, then
+    // reopens and resumes it. A POSIX telldir cookie is not valid for a new
+    // stream, so replay the stable count of raw directory entries instead.
+    rewinddir(impl->dir);
+    for (size_t i = 0; i < offset; ++i) {
+      if (readdir(impl->dir) == nullptr) return false;
+    }
+    impl->directoryPosition = offset;
+    return true;
+  }
+  if (impl->fd < 0) return false;
   return lseek(impl->fd, (off_t)offset, SEEK_SET) >= 0;
+}
+bool HalFile::truncate(uint64_t length) {
+  if (!impl || impl->fd < 0 ||
+      length > static_cast<uint64_t>(std::numeric_limits<off_t>::max()))
+    return false;
+  return ftruncate(impl->fd, static_cast<off_t>(length)) == 0;
 }
 int HalFile::available() const {
   if (!impl || impl->fd < 0)
@@ -218,8 +233,9 @@ int HalFile::available() const {
   return (int)(end - cur);
 }
 size_t HalFile::position() const {
-  if (!impl || impl->fd < 0)
-    return 0;
+  if (!impl) return 0;
+  if (impl->dir) return impl->directoryPosition;
+  if (impl->fd < 0) return 0;
   off_t pos = lseek(impl->fd, 0, SEEK_CUR);
   return pos < 0 ? 0 : (size_t)pos;
 }
@@ -263,8 +279,10 @@ bool HalFile::rename(const char *newPath) {
 }
 bool HalFile::isDirectory() const { return impl && impl->isDir(); }
 void HalFile::rewindDirectory() {
-  if (impl && impl->dir)
+  if (impl && impl->dir) {
     rewinddir(impl->dir);
+    impl->directoryPosition = 0;
+  }
 }
 bool HalFile::close() {
   if (!impl)
@@ -286,6 +304,7 @@ HalFile HalFile::openNextFile() {
     struct dirent *entry = readdir(impl->dir);
     if (!entry)
       return HalFile();
+    ++impl->directoryPosition;
     if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
       continue; // skip . and ..
 
@@ -369,6 +388,9 @@ bool HalStorage::rename(const char *oldPath, const char *newPath) {
   ensureParentDirectories(n);
   return ::rename(o.c_str(), n.c_str()) == 0;
 }
+bool HalStorage::replaceFile(const char *tmpPath, const char *path) {
+  return rename(tmpPath, path);
+}
 static bool removeDirRecursive(const std::string &full) {
   DIR *d = opendir(full.c_str());
   if (!d)
@@ -426,17 +448,6 @@ bool HalStorage::readFileToStream(const char *path, Print &out,
   return true;
 }
 
-bool HalStorage::readFileToString(const char *, const std::string &path, size_t cap, std::string &out) {
-  out.clear();
-  HalFile f = open(path.c_str(), O_RDONLY);
-  if (!f || f.isDirectory())
-    return false;
-  const size_t size = f.fileSize();
-  if (size == 0 || size > cap)
-    return false;
-  out.resize(size);
-  return f.read(out.data(), size) == static_cast<int>(size);
-}
 size_t HalStorage::readFileToBuffer(const char *path, char *buffer,
                                     size_t bufferSize, size_t maxBytes) {
   HalFile f = open(path, O_RDONLY);
@@ -450,6 +461,23 @@ size_t HalStorage::readFileToBuffer(const char *path, char *buffer,
     n = 0;
   buffer[n] = '\0';
   return n;
+}
+bool HalStorage::readFileToString(const char *moduleName,
+                                  const std::string &path, size_t cap,
+                                  std::string &out) {
+  out.clear();
+  HalFile file;
+  if (!openFileForRead(moduleName, path, file) || file.isDirectory())
+    return false;
+  const size_t size = file.fileSize();
+  if (size == 0 || size > cap)
+    return false;
+  out.resize(size);
+  if (file.read(out.data(), size) != static_cast<int>(size)) {
+    out.clear();
+    return false;
+  }
+  return true;
 }
 bool HalStorage::writeFile(const char *path, const String &content) {
   HalFile f = open(path, O_WRONLY | O_CREAT | O_TRUNC);

@@ -20,6 +20,7 @@
 #define IRAM_ATTR
 #define DRAM_ATTR
 #define RTC_NOINIT_ATTR
+#define SET_LOOP_TASK_STACK_SIZE(bytes)
 #define PGM_P const char *
 #define PSTR(s) (s)
 

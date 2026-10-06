@@ -44,6 +44,7 @@ struct GrayscalePreviewState {
   bool bwBaseValid = false;
   bool lsbValid = false;
   bool msbValid = false;
+  bool absolute = false;
 };
 
 constexpr uint8_t kGrayWhite = 255;
@@ -214,7 +215,23 @@ void composeGrayscalePreview() {
           getBit(grayscalePreviewState.msbPlane.data(), x, y);
 
       uint8_t level = kGrayWhite;
-      if (!baseWhite) {
+      if (grayscalePreviewState.absolute) {
+        const uint8_t value = (lsbActive ? 1 : 0) | (msbActive ? 2 : 0);
+        switch (value) {
+          case 0:
+            level = kGrayBlack;
+            break;
+          case 1:
+            level = kGrayDark;
+            break;
+          case 2:
+            level = kGrayLight;
+            break;
+          default:
+            level = kGrayWhite;
+            break;
+        }
+      } else if (!baseWhite) {
         if (msbActive) {
           level = lsbActive ? kGrayDark : kGrayLight;
         } else if (lsbActive) {
@@ -277,7 +294,10 @@ HalDisplay::~HalDisplay() {}
 #define SIMULATOR_CONTROLLER_TITLE "SSD1677"
 #endif
 
-#if defined(SIMULATOR_DEVICE_PAPERMONO)
+#if defined(SIMULATOR_DEVICE_METALIO_EINK4)
+static constexpr const char *WINDOW_TITLE =
+    "Simulator - Metalio E-Ink 4 (SSD1677)";
+#elif defined(SIMULATOR_DEVICE_PAPERMONO)
 static constexpr const char *WINDOW_TITLE =
     "Simulator - M5Stack PaperMono (SSD1677)";
 #elif defined(SIMULATOR_DEVICE_STICKY)
@@ -518,18 +538,26 @@ void HalDisplay::copyGrayscaleBuffers(const uint8_t *lsbBuffer,
 }
 void HalDisplay::displayGrayscaleBase(RefreshMode fallback,
                                       bool turnOffScreen) {
+  grayscalePreviewState.absolute = false;
   if (combinesGrayscaleBase()) {
     snapshotBwBase(getFrameBuffer());
     return;
   }
   displayBuffer(fallback, turnOffScreen);
 }
-// Mode-aware overload: the simulator's grayscale preview compositor handles
-// Overlay and Absolute the same way, so this just performs the base and reports
-// success. absoluteGrayPlanes bookkeeping lives in GfxRenderer, not here.
-bool HalDisplay::displayGrayscaleBase(GrayscaleMode, RefreshMode fallback,
+// Mode-aware overload: sets grayscalePreviewState.absolute so the preview
+// compositor (line ~218) takes the absolute-plane branch for Absolute/Direct,
+// matching real SSD1677 absolute-grayscale behavior; Overlay keeps the
+// existing combines-base snapshot path.
+bool HalDisplay::displayGrayscaleBase(GrayscaleMode mode, RefreshMode fallback,
                                       bool turnOffScreen) {
-  displayGrayscaleBase(fallback, turnOffScreen);
+  if (!grayscaleCapabilities(mode).supported()) return false;
+  grayscalePreviewState.absolute = mode != GrayscaleMode::Overlay;
+  if (combinesGrayscaleBase() && mode == GrayscaleMode::Overlay) {
+    snapshotBwBase(getFrameBuffer());
+    return true;
+  }
+  displayBuffer(fallback, turnOffScreen);
   return true;
 }
 void HalDisplay::preconditionGrayscale() {}
@@ -577,6 +605,9 @@ void HalDisplay::writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t *rows,
   }
 }
 bool HalDisplay::supportsStripGrayscale() const { return true; }
+// Not grayscaleCapabilities().asyncBase: that struct is built FROM this
+// predicate (see grayscaleCapabilities() below), so reading it back here
+// would recurse infinitely.
 bool HalDisplay::supportsAsyncGrayscaleBase() const { return false; }
 bool HalDisplay::combinesGrayscaleBase() const {
   return BoardConfig::isPaperMono();
@@ -584,12 +615,19 @@ bool HalDisplay::combinesGrayscaleBase() const {
 HalDisplay::Controller HalDisplay::getController() const {
   return BoardConfig::ACTIVE.displayController;
 }
-// Consolidated capabilities; field values match the three predicates above so
-// GfxRenderer (which now reads these instead of calling them) sees identical
-// simulator behavior. encoding is OverlayMasks (i.e. supported) because the sim
-// intentionally advertises grayscale to drive its preview compositor.
+// Mode-aware: Absolute/Direct report AbsolutePlanes encoding (feeds
+// displayGrayscaleBase's grayscalePreviewState.absolute wiring); the default
+// (Overlay) branch is OverlayMasks and matches the three predicates above
+// exactly, so GfxRenderer's no-arg callers (supportsStripGrayscale(),
+// supportsAsyncGrayscaleBase(), the combines-base check) see identical
+// simulator behavior to before.
 HalDisplay::GrayscaleCapabilities
-HalDisplay::grayscaleCapabilities(GrayscaleMode) const {
+HalDisplay::grayscaleCapabilities(GrayscaleMode mode) const {
+  if (mode == GrayscaleMode::Absolute || mode == GrayscaleMode::Direct) {
+    return {GrayscaleEncoding::AbsolutePlanes,
+            mode == GrayscaleMode::Direct ? GrayscaleBase::Combined : GrayscaleBase::Separate,
+            supportsStripGrayscale(), supportsAsyncGrayscaleBase(), false};
+  }
   GrayscaleCapabilities caps;
   caps.encoding = GrayscaleEncoding::OverlayMasks;
   caps.base = combinesGrayscaleBase() ? GrayscaleBase::Combined

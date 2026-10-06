@@ -33,6 +33,10 @@ public:
   bool disconnectUsbDriveHost();
   void endUsbDrive();
   UsbDriveState usbDriveState() const;
+  // Added upstream (USB drive activity): true while the USB host has suspended
+  // the mass-storage endpoint. The sim has no USB host, so it is never
+  // suspended.
+  bool usbDriveHostSuspended() const;
   std::vector<String> listFiles(const char *path = "/", int maxFiles = 200);
   // Read the entire file at `path` into a String. Returns empty string on
   // failure.
@@ -60,11 +64,11 @@ public:
   bool exists(const char *path);
   bool remove(const char *path);
   bool rename(const char *oldPath, const char *newPath);
-  // Move a fully written temp file over `path`. FAT rename does not replace an
-  // existing file, so the old one is removed first.
-  bool replaceFile(const char *tmpPath, const char *path) {
-    return (!exists(path) || remove(path)) && rename(tmpPath, path);
-  }
+  // Move a fully written temp file over `path`. Unlike the real firmware's
+  // FAT storage, the simulator's host filesystem rename() already replaces
+  // an existing destination atomically (see HalStorage.cpp), so no separate
+  // remove-then-rename is needed here.
+  bool replaceFile(const char *tmpPath, const char *path);
   bool rmdir(const char *path);
 
   bool openFileForRead(const char *moduleName, const char *path, HalFile &file);
@@ -79,11 +83,6 @@ public:
   bool openFileForWrite(const char *moduleName, const String &path,
                         HalFile &file);
   bool removeDir(const char *path);
-
-  // Added upstream (USB drive activity): true while the USB host has suspended
-  // the mass-storage endpoint. The sim has no USB host, so it is never
-  // suspended.
-  bool usbDriveHostSuspended() const { return false; }
 
   static HalStorage &getInstance() { return instance; }
 
@@ -125,6 +124,7 @@ public:
   bool seek64(uint64_t pos);
   bool seekCur(int64_t offset);
   bool seekSet(size_t offset);
+  bool truncate(uint64_t length);
   int available() const;
   size_t position() const;
   int read(void *buf, size_t count);
@@ -133,7 +133,6 @@ public:
   size_t write(const uint8_t *buf, size_t count) override;
   size_t write(uint8_t b) override;
   bool sync();
-  bool truncate(uint64_t length);
   bool rename(const char *newPath);
   bool isDirectory() const;
   void rewindDirectory();

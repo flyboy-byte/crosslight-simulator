@@ -7,6 +7,13 @@
 
 #include <Logging.h>
 
+// CrossLight links the real ContentProtection lib for the simulator too (see
+// platformio.local.ini: ContentProtection=symlink://freeink-sdk/libs/book/
+// ContentProtection), so freeink::content::openProtectedBook() already has a
+// real definition there. A weak stub here would collide with it (duplicate
+// symbol) and, upstream's ContentProtection.h stub header also collided with
+// freeink-sdk's own (class redefinition) -- removed both.
+
 // ---------------------------------------------------------------------------
 // MySerialImpl
 //

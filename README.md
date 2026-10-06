@@ -63,6 +63,12 @@ these flags:
   SSD1677 profile. It exposes FT6336-compatible touch and swipe input, the RTC,
   and single-channel frontlight state without a Home key or color-temperature
   control.
+- `-DSIMULATOR_DEVICE_METALIO_EINK4` selects the Metalio E-Ink 4's 800x480
+  SSD1677 profile with CST816S-compatible touch, cover Home-key input, RTC,
+  tilt availability, and haptic settings. It has no frontlight. Return maps to
+  BOOT/confirm, P to power, and Up/Down to volume; Page Up/Page Down model
+  cover Prev/Next. Escape and Left/Right are disabled because this board has no corresponding buttons.
+  See [the profile contract and verification](docs/metalio-eink4.md).
 - `-DSIMULATOR_DISPLAY_UC8179` selects the newer UC8179 controller used by
   some X4 and X4 Pro production batches.
 - `-DSIMULATOR_DISPLAY_UC8279` selects UC8279d on X3, or the 800x480 UC8279
@@ -72,8 +78,8 @@ The sample PlatformIO files include ready-to-use environments for the original
 profiles plus `simulator_sticky`, `simulator_x3_uc8279`, `simulator_x4_uc8179`,
 `simulator_x4_uc8279`, `simulator_x4_pro_uc8179`, and
 `simulator_x4_pro_uc8279`, the three `simulator_x4_classic` controller
-variants, plus `simulator_papermono`. The UC8279 X4 Pro path mirrors current
-FreeInk SDK support but remains pending validation on physical UC8279 X4 Pro
+variants, plus `simulator_papermono` and `simulator_metalio_eink4`. The UC8279
+X4 Pro path mirrors current FreeInk SDK support but remains pending validation on physical UC8279 X4 Pro
 hardware.
 
 Controller profiles expose the same framebuffer geometry and device
@@ -156,7 +162,7 @@ pio run -e simulator -t run_simulator
 | Escape | Back                               |
 | P      | Power                              |
 | S      | Simulate sleep                     |
-| H      | X4 Pro capacitive Home key         |
+| H      | X4 Pro / Metalio cover Home key    |
 | Mouse  | Touch-device tap and swipe         |
 
 When the simulator is on the sleep screen, pressing any mapped simulator key wakes it. Under the hood the simulator relaunches itself and reports a synthetic power-button wake, because the native build has no real ESP deep-sleep resume path.
@@ -170,7 +176,9 @@ tests possible without desktop-control permissions:
   `<milliseconds>:<action>`, separated by semicolons. Button actions use
   `<key>[:<hold-milliseconds>]`; keys are `BACK`, `ENTER`, `LEFT`, `RIGHT`,
   `UP`, `DOWN`, `POWER`, `SLEEP`, `HOME`, and `QUIT`. A normal key press is
-  held for 80 ms unless a duration is provided.
+  held for 80 ms unless a duration is provided. Metalio also accepts `PREV`
+  and `NEXT` for its capacitive cover page keys; `UP`/`DOWN` remain physical
+  volume keys.
 - Touch-device actions use `TAP:<x>,<y>[,<hold-milliseconds>]` or
   `SWIPE:<x1>,<y1>,<x2>,<y2>[,<duration-milliseconds>]`. Coordinates are in
   displayed logical pixels, so they match UI layouts and screenshots after the
@@ -278,6 +286,32 @@ custom_simulator_http_port = 18080
 ```
 
 Direct binary launches use the environment variable form.
+
+To open the web manager, select **File Transfer → Create Hotspot** in the
+simulator, then open `http://127.0.0.1:8080/` in your host browser. The simulated
+hotspot uses the host's loopback interface; no Wi-Fi connection is required.
+Keep the File Transfer screen open while using the browser.
+
+If `/settings` returns 404 or you see a reduced simulator file-transfer page,
+your environment still selects the legacy substitute. Update it to match the
+current sample: remove the `network/CrossPointWebServer.cpp` and
+`network/WebDAVHandler.cpp` exclusions from `build_src_filter`, add
+`-DCROSSPOINT_SIMULATOR_PROJECT_WEBSERVER` to `build_flags`, and rebuild.
+This compiles the firmware's actual web manager against the host network shims.
+
+From the firmware project, run the isolated HTTP smoke check after building:
+
+```bash
+python3 .pio/libdeps/simulator/simulator/test/web_manager_smoke.py \
+  .pio/build/simulator/program
+```
+
+The check navigates an empty simulated SD card to Create Hotspot and verifies
+the web pages, settings API, WebDAV, and WebSocket handshake. It uses a temporary
+directory and leaves your project's `fs_` untouched.
+
+The crypto endpoint supports host SHA-1/SHA-256 hashes and random bytes.
+Protected-book AES, RSA, and PKCS#12 operations return errors in the simulator.
 
 **Firmware updates**: OTA and SD-card firmware flashing are non-destructive in
 the simulator. The simulator stubs those update paths so the UI can be opened
